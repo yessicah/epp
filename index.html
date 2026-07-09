@@ -183,4 +183,285 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    box-shadow:
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    cursor: pointer;
+    transition: transform 0.15s ease, background-color 0.15s ease;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .worker-row:active {
+    transform: scale(0.98);
+    background-color: #f2f2f7;
+  }
+  .worker-info { display: flex; flex-direction: column; gap: 4px; }
+  .worker-name { font-size: 16px; font-weight: 600; color: var(--text-main); }
+  .worker-meta { font-size: 13px; color: var(--text-muted); }
+  .chevron-icon { color: var(--text-muted); font-size: 18px; font-weight: bold; }
+
+  /* Vista de Detalle Exclusiva */
+  .detail-header-card {
+    background: var(--primary);
+    color: white;
+    padding: 20px;
+    border-radius: 16px;
+    margin-bottom: 20px;
+    box-shadow: 0 4px 12px rgba(0, 122, 255, 0.2);
+  }
+  .detail-worker-name { font-size: 22px; font-weight: 700; margin: 0; }
+  .detail-worker-meta { font-size: 14px; opacity: 0.85; margin-top: 6px; }
+
+  .section-title {
+    font-size: 15px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-muted);
+    margin: 0 0 10px 4px;
+    font-weight: 600;
+  }
+
+  /* Tarjetas Dinámicas de EPP */
+  .epp-card {
+    background: var(--card-bg);
+    border-radius: 14px;
+    padding: 16px;
+    margin-bottom: 12px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.03);
+    border-left: 5px solid var(--text-muted);
+  }
+  .epp-card.entregado { border-left-color: var(--success); }
+  .epp-card.pendiente { border-left-color: var(--danger); }
+
+  .epp-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; }
+  .epp-title { font-size: 16px; font-weight: 600; color: var(--text-main); margin: 0; }
+  
+  .badge { padding: 4px 8px; border-radius: 6px; font-size: 11px; font-weight: bold; text-transform: uppercase; }
+  .badge.si { background: var(--success-bg); color: var(--success); }
+  .badge.no { background: var(--danger-bg); color: var(--danger); }
+  
+  /* Tabla de Atributos Dinámicos */
+  .dynamic-fields { display: flex; flex-direction: column; gap: 8px; }
+  .field-row { display: flex; justify-content: space-between; align-items: flex-start; font-size: 13px; line-height: 1.4; }
+  .field-label { color: var(--text-muted); font-weight: 400; padding-right: 8px; }
+  .field-value { color: var(--text-main); font-weight: 500; text-align: right; }
+</style>
+</head>
+<body>
+
+  <div class="navbar">
+    <button class="btn-back" id="btnVolver" onclick="mostrarVistaLista()">← Volver</button>
+    <div class="navbar-title" id="navTitle">Historial EPP</div>
+  </div>
+
+  <button class="fab-refresh" id="btnRefresh" onclick="forzarRefresh()" title="Sincronizar cambios">⟳</button>
+
+  <div id="toast" class="toast-notif">✅ ¡Datos actualizados!</div>
+
+  <div class="app-container">
+    
+    <div id="vistaLista" class="view">
+      <div class="search-wrapper">
+        <input type="search" id="txtBuscar" placeholder="🔍 Buscar por DNI o Nombre..." oninput="filtrarOperarios()" disabled>
+      </div>
+      
+      <div class="status-bar">
+        <div id="status" class="status-badge">⏳ Conectando con Google Sheets...</div>
+        <div id="workerCounter" class="counter-badge" style="display: none;">0 Trabajadores</div>
+      </div>
+
+      <div id="listaOperarios" class="list-container"></div>
+    </div>
+
+    <div id="vistaDetalle" class="view hidden">
+      <div class="detail-header-card">
+        <div class="detail-worker-name" id="detNombre">-</div>
+        <div class="detail-worker-meta" id="detMeta">-</div>
+      </div>
+      <div class="section-title">Elementos Asignados</div>
+      <div id="listaEppDetalle"></div>
+    </div>
+
+  </div>
+
+<script>
+  const urlPublicacionXlsx = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ9_lp_D8GkLHJjPvlZt8vrOng2zPx7UrHYUCG2v8TaRQAz6MzTBLq6H71zPGwO2EZVNYnOdTrm5Bwq/pub?output=xlsx";
+
+  let mapaTrabajadores = {}; 
+  let columnasDisponibles = []; 
+  
+  let colIdxDni = -1;
+  let colIdxNombre = -1;
+  let colIdxProducto = -1;
+  let colIdxEntregado = -1;
+
+  window.addEventListener('DOMContentLoaded', () => {
+    cargarLibroDesdeGoogle(urlPublicacionXlsx, false);
+  });
+
+  function forzarRefresh() {
+    const button = document.getElementById('btnRefresh');
+    if (button.classList.contains('spinning')) return; 
+    
+    button.classList.add('spinning');
+    document.getElementById('txtBuscar').disabled = true;
+    
+    const urlFiltroCache = `${urlPublicacionXlsx}&_cb=${new Date().getTime()}`;
+    cargarLibroDesdeGoogle(urlFiltroCache, true);
+  }
+
+  async function cargarLibroDesdeGoogle(urlExcel, esManual) {
+    const statusDiv = document.getElementById('status');
+    const inputBuscar = document.getElementById('txtBuscar');
+    const counterBadge = document.getElementById('workerCounter');
+    const buttonRefresh = document.getElementById('btnRefresh');
+
+    try {
+      statusDiv.innerText = "⏳ Descargando cambios...";
+      statusDiv.style.color = "var(--text-muted)";
+
+      const respuesta = await fetch(urlExcel, { mode: 'cors' });
+      if (!respuesta.ok) throw new Error("Error en respuesta de red");
+      
+      const dataBinaria = await respuesta.arrayBuffer();
+      const libro = XLSX.read(dataBinaria, { type: 'array' });
+      
+      const nombrePestana = "Planilla_EPP";
+      if (!libro.SheetNames.includes(nombrePestana)) {
+        throw new Error(`Falta pestaña '${nombrePestana}'`);
+      }
+      
+      const hojaPlanilla = libro.Sheets[nombrePestana];
+      const filas = XLSX.utils.sheet_to_json(hojaPlanilla, { header: 1 });
+
+      if (filas.length === 0) throw new Error("Planilla vacía");
+
+      const cabecera = filas[0];
+      columnasDisponibles = cabecera.map(c => String(c || '').trim());
+
+      columnasDisponibles.forEach((col, idx) => {
+        const colLower = col.toLowerCase();
+        if (colLower === 'dni') colIdxDni = idx;
+        else if (colLower.includes('trabajador') || colLower === 'nombre') colIdxNombre = idx;
+        else if (colLower.includes('producto') || colLower === 'epp' || colLower === 'elemento') colIdxProducto = idx;
+        else if (colLower.includes('entrega') && !colLower.includes('fecha')) colIdxEntregado = idx;
+      });
+
+      if (colIdxDni === -1) colIdxDni = 0;
+      if (colIdxNombre === -1) colIdxNombre = 1;
+      if (colIdxProducto === -1) colIdxProducto = 3;
+      if (colIdxEntregado === -1) colIdxEntregado = 10;
+
+      mapaTrabajadores = {};
+
+      for(let i = 1; i < filas.length; i++) {
+        const fila = filas[i];
+        if (!fila || fila.length < 2) continue;
+
+        const limpiar = (val) => val !== undefined && val !== null ? String(val).trim() : "";
+        const dni = limpiar(fila[colIdxDni]);
+        
+        if (!dni || dni.toLowerCase() === "dni") continue;
+
+        if (!mapaTrabajadores[dni]) {
+          mapaTrabajadores[dni] = {
+            dni: dni,
+            nombre: limpiar(fila[colIdxNombre]) || 'Sin Nombre',
+            legajo: limpiar(fila[2]), 
+            items: []
+          };
+        }
+
+        let eppDinamico = {
+          _producto: limpiar(fila[colIdxProducto]),
+          _esEntregado: limpiar(fila[colIdxEntregado]).toLowerCase() === 'sí' || limpiar(fila[colIdxEntregado]).toLowerCase() === 'si',
+          camposExtra: []
+        };
+
+        columnasDisponibles.forEach((nombreColumna, idxCol) => {
+          if (idxCol !== colIdxDni && idxCol !== colIdxNombre && idxCol !== colIdxProducto) {
+            const valorCelda = limpiar(fila[idxCol]);
+            if (valorCelda !== "") {
+              eppDinamico.camposExtra.push({ label: nombreColumna, value: valorCelda });
+            }
+          }
+        });
+
+        if (eppDinamico._producto) {
+          mapaTrabajadores[dni].items.push(eppDinamico);
+        }
+      }
+
+      const totalTrabajadores = Object.keys(mapaTrabajadores).length;
+      counterBadge.innerText = `${totalTrabajadores} Trabajador${totalTrabajadores !== 1 ? 'es' : ''}`;
+      counterBadge.style.display = "block";
+
+      statusDiv.innerText = `🟢 Sincronizado`;
+      statusDiv.style.color = "var(--success)";
+      inputBuscar.disabled = false;
+      
+      if (!document.getElementById('vistaDetalle').classList.contains('hidden')) {
+        const activeDni = document.getElementById('detMeta').innerText.match(/DNI:\s*([^\s•|]+)/);
+        if (activeDni && activeDni[1]) mostrarVistaDetalle(activeDni[1]);
+      } else {
+        filtrarOperarios();
+      }
+
+      if (esManual) {
+        const toast = document.getElementById('toast');
+        toast.style.display = 'block';
+        setTimeout(() => { toast.style.display = 'none'; }, 1800);
+      }
+
+    } catch (err) {
+      console.error(err);
+      statusDiv.innerText = "❌ Error de conexión con Google";
+      statusDiv.style.color = "var(--danger)";
+    } finally {
+      buttonRefresh.classList.remove('spinning');
+    }
+  }
+
+  function renderizarListaOperarios(lista) {
+    const contenedor = document.getElementById('listaOperarios');
+    contenedor.innerHTML = "";
+
+    lista.sort((a, b) => a.nombre.localeCompare(b.nombre));
+
+    if (lista.length === 0) {
+      contenedor.innerHTML = "<p style='color: var(--text-muted); text-align:center; padding: 20px;'>Sin coincidencia.</p>";
+      return;
+    }
+
+    lista.forEach(op => {
+      const fila = document.createElement('div');
+      fila.className = 'worker-row';
+      fila.onclick = () => mostrarVistaDetalle(op.dni);
+      
+      fila.innerHTML = `
+        <div class="worker-info">
+          <div class="worker-name">${op.nombre}</div>
+          <div class="worker-meta">DNI: ${op.dni} ${op.legajo ? `• Legajo: ${op.legajo}` : ''}</div>
+        </div>
+        <div class="chevron-icon">›</div>
+      `;
+      contenedor.appendChild(fila);
+    });
+  }
+
+  function filtrarOperarios() {
+    const busqueda = document.getElementById('txtBuscar').value.toLowerCase().trim();
+    const todos = Object.values(mapaTrabajadores);
+
+    if (!busqueda) {
+      renderizarListaOperarios(todos);
+      return;
+    }
+
+    const filtrados = todos.filter(op => 
+      op.dni.toLowerCase().includes(busqueda) || 
+      op.nombre.toLowerCase().includes(busqueda)
+    );
+
+    renderizarListaOperarios(filtrados);
+  }
+
+  function mostrarVistaDetalle(dni) {
+    const op = mapaTrabajadores
