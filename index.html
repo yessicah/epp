@@ -43,6 +43,7 @@
     box-shadow: 0 1px 3px rgba(0,0,0,0.03);
   }
   .navbar-title { font-size: 18px; font-weight: 700; color: var(--text-main); text-align: center; }
+  
   .btn-back {
     position: absolute;
     left: 16px;
@@ -57,6 +58,37 @@
     gap: 4px;
   }
 
+  /* Botón de Refresh */
+  .btn-refresh {
+    position: absolute;
+    right: 16px;
+    background: none;
+    border: none;
+    color: var(--primary);
+    font-size: 20px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    transition: background-color 0.2s;
+  }
+  .btn-refresh:active {
+    background-color: var(--bg);
+  }
+
+  /* Animación de rotación para el refresh */
+  @keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+  .spinning {
+    animation: spin 0.8s linear infinite;
+    color: var(--text-muted);
+  }
+
   /* Contenedor principal móvil */
   .app-container {
     max-width: 600px;
@@ -67,7 +99,7 @@
 
   /* Buscador Estilizado */
   .search-wrapper {
-    margin-bottom: 16px;
+    margin-bottom: 12px;
     position: relative;
   }
   input[type="search"] { 
@@ -87,12 +119,26 @@
     box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.15);
   }
   
+  /* Contador e Info de Estado */
+  .status-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+    padding: 0 4px;
+  }
   .status-badge { 
     font-size: 13px; 
     color: var(--text-muted); 
-    text-align: center; 
-    margin-bottom: 16px;
     font-weight: 500;
+  }
+  .counter-badge {
+    background-color: var(--primary-light);
+    color: var(--primary);
+    font-size: 13px;
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: 20px;
   }
 
   /* Vistas (Pantallas virtuales) */
@@ -174,6 +220,7 @@
   <div class="navbar">
     <button class="btn-back" id="btnVolver" onclick="mostrarVistaLista()">← Volver</button>
     <div class="navbar-title" id="navTitle">Historial EPP</div>
+    <button class="btn-refresh" id="btnRefresh" onclick="forzarRefresh()" title="Sincronizar cambios">⟳</button>
   </div>
 
   <div class="app-container">
@@ -182,7 +229,12 @@
       <div class="search-wrapper">
         <input type="search" id="txtBuscar" placeholder="🔍 Buscar por DNI o Nombre..." oninput="filtrarOperarios()" disabled>
       </div>
-      <div id="status" class="status-badge">⏳ Conectando con Google Sheets...</div>
+      
+      <div class="status-bar">
+        <div id="status" class="status-badge">⏳ Conectando con Google Sheets...</div>
+        <div id="workerCounter" class="counter-badge" style="display: none;">0 Trabajadores</div>
+      </div>
+
       <div id="listaOperarios" class="list-container"></div>
     </div>
 
@@ -198,27 +250,47 @@
   </div>
 
 <script>
+  // URL global de tu base de datos XLSX publicado en Google
+  const urlPublicacionXlsx = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ9_lp_D8GkLHJjPvlZt8vrOng2zPx7UrHYUCG2v8TaRQAz6MzTBLq6H71zPGwO2EZVNYnOdTrm5Bwq/pub?output=xlsx";
+
   // Estructuras de memoria globales
   let mapaTrabajadores = {}; 
   let columnasDisponibles = []; 
   
-  // Nombres normalizados de las columnas de control base
   let colIdxDni = -1;
   let colIdxNombre = -1;
   let colIdxProducto = -1;
   let colIdxEntregado = -1;
 
-  // Carga e inicialización inmediata al abrir la página
   window.addEventListener('DOMContentLoaded', () => {
-    const urlPublicacionXlsx = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ9_lp_D8GkLHJjPvlZt8vrOng2zPx7UrHYUCG2v8TaRQAz6MzTBLq6H71zPGwO2EZVNYnOdTrm5Bwq/pub?output=xlsx";
     cargarLibroDesdeGoogle(urlPublicacionXlsx);
   });
+
+  // Función para gatillar la actualización manual desde el botón
+  function forzarRefresh() {
+    const icon = document.getElementById('btnRefresh');
+    const inputBuscar = document.getElementById('txtBuscar');
+    
+    if (icon.classList.contains('spinning')) return; // Evita multi-clics continuos
+    
+    icon.classList.add('spinning');
+    inputBuscar.disabled = true;
+    
+    // Agregamos un timestamp aleatorio al final de la URL para saltarnos la caché del navegador del celu
+    const urlFiltroCache = `${urlPublicacionXlsx}&_cb=${new Date().getTime()}`;
+    cargarLibroDesdeGoogle(urlFiltroCache);
+  }
 
   async function cargarLibroDesdeGoogle(urlExcel) {
     const statusDiv = document.getElementById('status');
     const inputBuscar = document.getElementById('txtBuscar');
+    const counterBadge = document.getElementById('workerCounter');
+    const iconRefresh = document.getElementById('btnRefresh');
 
     try {
+      statusDiv.innerText = "⏳ Descargando cambios desde la nube...";
+      statusDiv.style.color = "var(--text-muted)";
+
       const respuesta = await fetch(urlExcel);
       if (!respuesta.ok) throw new Error();
       
@@ -239,7 +311,6 @@
       const cabecera = filas[0];
       columnasDisponibles = cabecera.map(c => String(c || '').trim());
 
-      // Identificamos los índices de control buscando coincidencias semánticas elementales
       columnasDisponibles.forEach((col, idx) => {
         const colLower = col.toLowerCase();
         if (colLower === 'dni') colIdxDni = idx;
@@ -248,7 +319,6 @@
         else if (colLower.includes('entrega') && !colLower.includes('fecha')) colIdxEntregado = idx;
       });
 
-      // Si no encuentra columnas lógicas por texto, asigna por defecto posicional inteligente
       if (colIdxDni === -1) colIdxDni = 0;
       if (colIdxNombre === -1) colIdxNombre = 1;
       if (colIdxProducto === -1) colIdxProducto = 3;
@@ -256,7 +326,6 @@
 
       mapaTrabajadores = {};
 
-      // Procesar filas de datos
       for(let i = 1; i < filas.length; i++) {
         const fila = filas[i];
         if (!fila || fila.length < 2) continue;
@@ -266,17 +335,15 @@
         
         if (!dni || dni.toLowerCase() === "dni") continue;
 
-        // Si el trabajador no existe en el mapa, lo creamos
         if (!mapaTrabajadores[dni]) {
           mapaTrabajadores[dni] = {
             dni: dni,
             nombre: limpiar(fila[colIdxNombre]) || 'Sin Nombre',
-            legajo: limpiar(fila[2]), // Guardado posicional preventivo para subtítulos
+            legajo: limpiar(fila[2]), 
             items: []
           };
         }
 
-        // Construcción dinámica de atributos del EPP recorriendo el 100% de celdas declaradas
         let eppDinamico = {
           _producto: limpiar(fila[colIdxProducto]),
           _esEntregado: limpiar(fila[colIdxEntregado]).toLowerCase() === 'sí' || limpiar(fila[colIdxEntregado]).toLowerCase() === 'si',
@@ -284,7 +351,6 @@
         };
 
         columnasDisponibles.forEach((nombreColumna, idxCol) => {
-          // Guardamos en la tarjeta todos los datos que aporten valor y no sean las llaves primarias
           if (idxCol !== colIdxDni && idxCol !== colIdxNombre && idxCol !== colIdxProducto) {
             const valorCelda = limpiar(fila[idxCol]);
             if (valorCelda !== "") {
@@ -301,25 +367,37 @@
         }
       }
 
-      statusDiv.innerText = `🟢 Conectado con la nube`;
+      // Actualizar visualizaciones e indicadores
+      const totalTrabajadores = Object.keys(mapaTrabajadores).length;
+      counterBadge.innerText = `${totalTrabajadores} Trabajador${totalTrabajadores !== 1 ? 'es' : ''}`;
+      counterBadge.style.display = "block";
+
+      statusDiv.innerText = `🟢 Sincronizado`;
+      statusDiv.style.color = "var(--success)";
       inputBuscar.disabled = false;
       
-      // Renderizado automático inicial de todo el universo cargado
-      renderizarListaOperarios(Object.values(mapaTrabajadores));
+      // Si el usuario estaba viendo el detalle de alguien, actualizamos su ficha de fondo por si cambiaron datos
+      if (!document.getElementById('vistaDetalle').classList.contains('hidden')) {
+        const activeDni = document.getElementById('detMeta').innerText.match(/DNI:\s*([^\s•|]+)/);
+        if (activeDni && activeDni[1]) mostrarVistaDetalle(activeDni[1]);
+      } else {
+        filtrarOperarios();
+      }
 
     } catch (err) {
       console.error(err);
-      statusDiv.innerText = "❌ Error crítico al sincronizar datos.";
+      statusDiv.innerText = "❌ Error al sincronizar";
       statusDiv.style.color = "var(--danger)";
+    } finally {
+      // Detener animación del botón de refresco
+      iconRefresh.classList.remove('spinning');
     }
   }
 
-  // Despliega el bloque de operarios en la pantalla principal
   function renderizarListaOperarios(lista) {
     const contenedor = document.getElementById('listaOperarios');
     contenedor.innerHTML = "";
 
-    // Ordenar alfabéticamente por nombre
     lista.sort((a, b) => a.nombre.localeCompare(b.nombre));
 
     if (lista.length === 0) {
@@ -343,7 +421,6 @@
     });
   }
 
-  // Filtro inteligente en tiempo real según input
   function filtrarOperarios() {
     const busqueda = document.getElementById('txtBuscar').value.toLowerCase().trim();
     const todos = Object.values(mapaTrabajadores);
@@ -361,17 +438,16 @@
     renderizarListaOperarios(filtrados);
   }
 
-  // Cambio de pantalla: Ir al Detalle del Trabajador seleccionado
   function mostrarVistaDetalle(dni) {
     const op = mapaTrabajadores[dni];
     if (!op) return;
 
-    // Configurar cabeceras
     document.getElementById('navTitle').innerText = "Ficha Trabajador";
     document.getElementById('btnVolver').style.display = "flex";
+    document.getElementById('btnRefresh').style.display = "none"; // Ocultar refresh en detalle
     
     document.getElementById('detNombre').innerText = op.nombre;
-    document.getElementById('detMeta').innerText = `DNI: ${op.dni} ${op.legajo ? `| Legajo: ${op.legajo}` : ''}`;
+    document.getElementById('detMeta').innerText = `DNI: ${op.dni} ${op.legajo ? `• Legajo: ${op.legajo}` : ''}`;
 
     const contenedorEpp = document.getElementById('listaEppDetalle');
     contenedorEpp.innerHTML = "";
@@ -380,7 +456,6 @@
       contenedorEpp.innerHTML = "<p style='color: var(--text-muted); font-style: italic; padding: 10px;'>Este trabajador no registra entregas de EPP.</p>";
     } else {
       op.items.forEach(it => {
-        // Renderizado 100% dinámico de campos adicionales leídos desde el Excel
         let filasAtributosHTML = "";
         it.camposExtra.forEach(campo => {
           filasAtributosHTML += `
@@ -406,19 +481,19 @@
       });
     }
 
-    // Ocultar pantalla de lista y mostrar la de detalle
     document.getElementById('vistaLista').classList.add('hidden');
     document.getElementById('vistaDetalle').classList.remove('hidden');
     window.scrollTo(0, 0);
   }
 
-  // Cambio de pantalla: Volver al Listado Principal
   function mostrarVistaLista() {
     document.getElementById('navTitle').innerText = "Historial EPP";
     document.getElementById('btnVolver').style.display = "none";
+    document.getElementById('btnRefresh').style.display = "flex"; // Volver a mostrar refresh
     
     document.getElementById('vistaDetalle').classList.add('hidden');
     document.getElementById('vistaLista').classList.remove('hidden');
+    filtrarOperarios(); // Mantiene sincronizada la lista por si hubo cambios de datos
   }
 </script>
 
