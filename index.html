@@ -58,30 +58,39 @@
     gap: 4px;
   }
 
-  /* BOTÓN GRAN REFRESH FLOTANTE */
-  .fab-refresh {
-    position: fixed;
-    bottom: 24px;
-    right: 24px;
-    width: 60px;
-    height: 60px;
-    border-radius: 50%;
-    background-color: var(--primary);
-    color: white;
-    border: none;
-    font-size: 28px;
+  /* CONTENEDOR DE ESTADO Y BOTÓN INTEGRADO */
+  .status-container {
     display: flex;
     align-items: center;
+    gap: 8px;
+  }
+
+  .status-badge { 
+    font-size: 13px; 
+    color: var(--text-muted); 
+    font-weight: 500;
+  }
+
+  /* NUEVO BOTÓN INTEGRADO AL LADO DEL TEXTO */
+  .btn-inline-refresh {
+    background-color: var(--primary-light);
+    color: var(--primary);
+    border: none;
+    font-size: 16px;
+    font-weight: bold;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
     justify-content: center;
-    box-shadow: 0 4px 16px rgba(0, 122, 255, 0.4);
     cursor: pointer;
-    z-index: 999;
-    transition: transform 0.1s ease, background-color 0.2s;
+    transition: background-color 0.2s, transform 0.1s;
     -webkit-tap-highlight-color: transparent;
   }
-  .fab-refresh:active {
+  .btn-inline-refresh:active {
     transform: scale(0.9);
-    background-color: #0056b3;
+    background-color: #cbdcf7;
   }
 
   @keyframes spin {
@@ -90,8 +99,8 @@
   }
   .spinning {
     animation: spin 1s linear infinite;
-    background-color: var(--text-muted) !important;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    color: var(--text-muted);
+    background-color: var(--border);
     pointer-events: none;
   }
 
@@ -155,11 +164,7 @@
     align-items: center;
     margin-bottom: 16px;
     padding: 0 4px;
-  }
-  .status-badge { 
-    font-size: 13px; 
-    color: var(--text-muted); 
-    font-weight: 500;
+    min-height: 36px;
   }
   .counter-badge {
     background-color: var(--primary-light);
@@ -251,8 +256,6 @@
     <div class="navbar-title" id="navTitle">Historial EPP</div>
   </div>
 
-  <button class="fab-refresh" id="btnRefresh" onclick="forzarRefresh()" title="Sincronizar cambios">⟳</button>
-
   <div id="toast" class="toast-notif">✅ ¡Datos actualizados!</div>
 
   <div class="app-container">
@@ -263,7 +266,10 @@
       </div>
       
       <div class="status-bar">
-        <div id="status" class="status-badge">⏳ Conectando con Google Sheets...</div>
+        <div class="status-container">
+          <div id="status" class="status-badge">⏳ Conectando con Google Sheets...</div>
+          <button class="btn-inline-refresh" id="btnRefresh" onclick="forzarRefresh()" title="Sincronizar cambios">⟳</button>
+        </div>
         <div id="workerCounter" class="counter-badge" style="display: none;">0 Trabajadores</div>
       </div>
 
@@ -314,7 +320,7 @@
     const buttonRefresh = document.getElementById('btnRefresh');
 
     try {
-      statusDiv.innerText = "⏳ Descargando cambios...";
+      statusDiv.innerText = "⏳ Descargando...";
       statusDiv.style.color = "var(--text-muted)";
 
       const respuesta = await fetch(urlExcel);
@@ -469,7 +475,6 @@
 
     document.getElementById('navTitle').innerText = "Ficha Trabajador";
     document.getElementById('btnVolver').style.display = "flex";
-    document.getElementById('btnRefresh').style.display = "none"; 
     
     document.getElementById('detNombre').innerText = op.nombre;
     document.getElementById('detMeta').innerText = "DNI: " + op.dni + (op.legajo ? " • Legajo: " + op.legajo : "");
@@ -514,7 +519,6 @@
   function mostrarVistaLista() {
     document.getElementById('navTitle').innerText = "Historial EPP";
     document.getElementById('btnVolver').style.display = "none";
-    document.getElementById('btnRefresh').style.display = "flex"; 
     
     document.getElementById('vistaDetalle').classList.add('hidden');
     document.getElementById('vistaLista').classList.remove('hidden');
