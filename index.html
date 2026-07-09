@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Buscador EPP - Nube Completa</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+  body { 
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
+    padding: 15px; 
+    background: #f5f5f7; 
+    color: #333; 
+    margin: 0;
+  }
+  h2 { text-align: center; color: #1d1d1f; margin-top: 10px; margin-bottom: 20px; }
+  
+  .search-container { margin-bottom: 20px; }
+  input[type="search"] { 
+    width: 100%; 
+    padding: 14px; 
+    border-radius: 8px; 
+    border: 1px solid #ccc; 
+    font-size: 16px; 
+    box-sizing: border-box; 
+    box-shadow: inset 0 1px 2px rgba(0,0,0,0.05);
+  }
+  
+  .status-msg { 
+    font-size: 14px; 
+    color: #007aff; 
+    text-align: center; 
+    margin: 12px 0; 
+    font-weight: 500;
+  }
+  
+  .operario-card {
+    background: white;
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 20px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  }
+  .operario-header {
+    border-bottom: 2px solid #007aff;
+    padding-bottom: 8px;
+    margin-bottom: 12px;
+  }
+  .operario-nombre { font-size: 18px; font-weight: bold; color: #1d1d1f; }
+  .operario-meta { font-size: 14px; color: #666; margin-top: 4px; }
+  
+  .epp-item { 
+    background: #f8f9fa; 
+    padding: 12px; 
+    border-radius: 8px; 
+    margin-bottom: 10px; 
+    border-left: 4px solid #ccc;
+  }
+  .epp-item.entregado { border-left-color: #1a7f37; }
+  .epp-item.pendiente { border-left-color: #cf222e; }
+
+  .top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .producto-nombre { font-weight: 600; font-size: 15px; color: #1d1d1f; }
+  
+  .badge { padding: 4px 8px; border-radius: 6px; font-size: 11px; font-weight: bold; text-transform: uppercase; }
+  .badge.si { background: #e2f6ea; color: #1a7f37; }
+  .badge.no { background: #ffebe9; color: #cf222e; }
+  
+  .details { font-size: 13px; display: grid; grid-template-columns: 1fr; gap: 4px; color: #555; }
+  .detail-field { display: flex; justify-content: space-between; border-bottom: 1px dashed #e5e5e5; padding-bottom: 2px; }
+  .k { color: #86868b; }
+  .v { font-weight: 500; text-align: right; color: #1d1d1f; }
+  .nota { margin-top: 6px; font-size: 12px; color: #666; font-style: italic; background: #eee; padding: 4px 8px; border-radius: 4px; }
+</style>
+</head>
+<body>
+
+  <h2>Buscador de Historial EPP</h2>
+
+  <div class="search-container">
+    <div id="status" class="status-msg">⏳ Descargando y procesando libro completo...</div>
+    <input type="search" id="txtBuscar" placeholder="Buscar por DNI o Apellido..." oninput="filtrarResultados()" disabled>
+  </div>
+
+  <div id="resultados"></div>
+
+<script>
+  let baseDatosEPP = [];
+
+  // Función para descargar el archivo .xlsx binario de fondo
+  async function cargarLibroDesdeGoogle(urlExcel) {
+    const statusDiv = document.getElementById('status');
+    const inputBuscar = document.getElementById('txtBuscar');
+
+    try {
+      // Pedimos el archivo como un arrayBuffer (binario raw)
+      const respuesta = await fetch(urlExcel);
+      if (!respuesta.ok) throw new Error("No se pudo obtener el archivo.");
+      
+      const dataBinaria = await respuesta.arrayBuffer();
+      
+      // SheetJS lee todo el libro con sus múltiples pestañas
+      const libro = XLSX.read(dataBinaria, { type: 'array' });
+      
+      // Buscamos específicamente la pestaña que necesitamos
+      const nombrePestana = "Planilla_EPP";
+      if (!libro.SheetNames.includes(nombrePestana)) {
+        throw new Error(`No se encontró la pestaña llamada '${nombrePestana}'`);
+      }
+      
+      const hojaPlanilla = libro.Sheets[nombrePestana];
+      // Convertimos la matriz a JSON estructurado por filas
+      const filas = XLSX.utils.sheet_to_json(hojaPlanilla, { header: 1 });
+
+      baseDatosEPP = [];
+
+      filas.forEach((fila, index) => {
+        if (index === 0 || !fila || fila.length < 2) return; // Saltamos cabecera o vacías
+
+        const limpiar = (val) => val !== undefined && val !== null ? String(val).trim() : "";
+
+        // Mapeo posicional exacto de tus columnas del CSV
+        const dni = limpiar(fila[0]);
+        if (!dni || dni.toLowerCase() === "dni") return;
+
+        baseDatosEPP.push({
+          dni: dni,
+          nombre: limpiar(fila[1]),
+          legajo: limpiar(fila[2]),
+          producto: limpiar(fila[3]),
+          tipo: limpiar(fila[4]),
+          marca: limpiar(fila[5]),
+          certificacion: limpiar(fila[6]),
+          cantidad: limpiar(fila[7]) || "1",
+          fecha: limpiar(fila[8]),
+          fechaReposicion: limpiar(fila[9]),
+          entregado: limpiar(fila[10]),
+          infoAdicional: limpiar(fila[11])
+        });
+      });
+
+      statusDiv.innerText = `✅ ¡Libro completo sincronizado! (${baseDatosEPP.length} registros)`;
+      statusDiv.style.color = "#1a7f37";
+      inputBuscar.disabled = false;
+
+    } catch (err) {
+      console.error(err);
+      statusDiv.innerText = "❌ Error al descargar el libro completo. Verificá que esté publicado como .xlsx";
+      statusDiv.style.color = "#cf222e";
+    }
+  }
+
+  function filtrarResultados() {
+    const busqueda = document.getElementById('txtBuscar').value.toLowerCase().trim();
+    const contenedor = document.getElementById('resultados');
+    contenedor.innerHTML = "";
+
+    if (!busqueda) {
+      contenedor.innerHTML = "<p style='color: #888; text-align:center;'>Ingresá un DNI o Apellido para comenzar.</p>";
+      return;
+    }
+
+    const registrosFiltrados = baseDatosEPP.filter(item => 
+      item.dni.toLowerCase().includes(busqueda) || 
+      item.nombre.toLowerCase().includes(busqueda)
+    );
+
+    if (registrosFiltrados.length === 0) {
+      contenedor.innerHTML = "<p style='color: #cf222e; text-align:center;'>No se encontraron registros.</p>";
+      return;
+    }
+
+    const mapaTrabajadores = {};
+    registrosFiltrados.forEach(reg => {
+      if (!mapaTrabajadores[reg.dni]) {
+        mapaTrabajadores[reg.dni] = { nombre: reg.nombre, legajo: reg.legajo, dni: reg.dni, items: [] };
+      }
+      if (reg.producto) {
+        mapaTrabajadores[reg.dni].items.push(reg);
+      }
+    });
+
+    Object.values(mapaTrabajadores).forEach(trabajador => {
+      let itemsHTML = "";
+
+      trabajador.items.forEach(it => {
+        const esEntregado = it.entregado.toLowerCase() === 'sí' || it.entregado.toLowerCase() === 'si';
+        
+        itemsHTML += `
+          <div class="epp-item ${esEntregado ? 'entregado' : 'pendiente'}">
+            <div class="top">
+              <span class="producto-nombre">${it.producto}</span>
+              <span class="badge ${esEntregado ? 'si' : 'no'}">${esEntregado ? 'Entregado' : 'Pendiente'}</span>
+            </div>
+            <div class="details">
+              ${it.tipo ? `<div class="detail-field"><span class="k">Tipo / Modelo</span><span class="v">${it.tipo}</span></div>` : ''}
+              ${it.marca ? `<div class="detail-field"><span class="k">Marca</span><span class="v">${it.marca}</span></div>` : ''}
+              <div class="detail-field"><span class="k">Cantidad</span><span class="v">${it.cantidad}</span></div>
+              <div class="detail-field"><span class="k">Fecha de Entrega</span><span class="v">${it.fecha || '-'}</span></div>
+              ${it.fechaReposicion ? `<div class="detail-field"><span class="k">Fecha Reposición</span><span class="v">${it.fechaReposicion}</span></div>` : ''}
+              ${it.certificacion ? `<div class="detail-field"><span class="k">Certificación</span><span class="v">${it.certificacion}</span></div>` : ''}
+            </div>
+            ${it.infoAdicional ? `<div class="nota">Nota: ${it.infoAdicional}</div>` : ''}
+          </div>
+        `;
+      });
+
+      contenedor.innerHTML += `
+        <div class="operario-card">
+          <div class="operario-header">
+            <div class="operario-nombre">${trabajador.nombre}</div>
+            <div class="operario-meta">DNI: ${trabajador.dni} ${trabajador.legajo ? `| Legajo: ${trabajador.legajo}` : ''}</div>
+          </div>
+          ${itemsHTML}
+        </div>
+      `;
+    });
+  }
+
+  // PEGA ACÁ TU ENLACE LARGO DE GOOGLE SHEETS DE TIPO XLSX
+  const urlPublicacionXlsx = "https://docs.google.com/spreadsheets/d/e/2PACX-TU_ID_LARGO/pub?output=xlsx";
+  
+  // Iniciamos la descarga automática al abrir la web
+  window.addEventListener('DOMContentLoaded', () => {
+    cargarLibroDesdeGoogle(urlPublicacionXlsx);
+  });
+</script>
+
+</body>
+</html>
