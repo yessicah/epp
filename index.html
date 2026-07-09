@@ -58,7 +58,7 @@
     gap: 4px;
   }
 
-  /* BOTÓN GRAN REFRESH FLOTANTE (ESTILO MÓVIL) */
+  /* BOTÓN GRAN REFRESH FLOTANTE */
   .fab-refresh {
     position: fixed;
     bottom: 24px;
@@ -84,7 +84,6 @@
     background-color: #0056b3;
   }
 
-  /* Animación de rotación para el refresh */
   @keyframes spin {
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
@@ -184,97 +183,4 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
-    cursor: pointer;
-    transition: transform 0.15s ease, background-color 0.15s ease;
-    -webkit-tap-highlight-color: transparent;
-  }
-  .worker-row:active {
-    transform: scale(0.98);
-    background-color: #f2f2f7;
-  }
-  .worker-info { display: flex; flex-direction: column; gap: 4px; }
-  .worker-name { font-size: 16px; font-weight: 600; color: var(--text-main); }
-  .worker-meta { font-size: 13px; color: var(--text-muted); }
-  .chevron-icon { color: var(--text-muted); font-size: 18px; font-weight: bold; }
-
-  /* Vista de Detalle Exclusiva */
-  .detail-header-card {
-    background: var(--primary);
-    color: white;
-    padding: 20px;
-    border-radius: 16px;
-    margin-bottom: 20px;
-    box-shadow: 0 4px 12px rgba(0, 122, 255, 0.2);
-  }
-  .detail-worker-name { font-size: 22px; font-weight: 700; margin: 0; }
-  .detail-worker-meta { font-size: 14px; opacity: 0.85; margin-top: 6px; }
-
-  .section-title {
-    font-size: 15px;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    color: var(--text-muted);
-    margin: 0 0 10px 4px;
-    font-weight: 600;
-  }
-
-  /* Tarjetas Dinámicas de EPP */
-  .epp-card {
-    background: var(--card-bg);
-    border-radius: 14px;
-    padding: 16px;
-    margin-bottom: 12px;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.03);
-    border-left: 5px solid var(--text-muted);
-  }
-  .epp-card.entregado { border-left-color: var(--success); }
-  .epp-card.pendiente { border-left-color: var(--danger); }
-
-  .epp-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; }
-  .epp-title { font-size: 16px; font-weight: 600; color: var(--text-main); margin: 0; }
-  
-  .badge { padding: 4px 8px; border-radius: 6px; font-size: 11px; font-weight: bold; text-transform: uppercase; }
-  .badge.si { background: var(--success-bg); color: var(--success); }
-  .badge.no { background: var(--danger-bg); color: var(--danger); }
-  
-  /* Tabla de Atributos Dinámicos */
-  .dynamic-fields { display: flex; flex-direction: column; gap: 8px; }
-  .field-row { display: flex; justify-content: space-between; align-items: flex-start; font-size: 13px; line-height: 1.4; }
-  .field-label { color: var(--text-muted); font-weight: 400; padding-right: 8px; }
-  .field-value { color: var(--text-main); font-weight: 500; text-align: right; }
-</style>
-</head>
-<body>
-
-  <div class="navbar">
-    <button class="btn-back" id="btnVolver" onclick="mostrarVistaLista()">← Volver</button>
-    <div class="navbar-title" id="navTitle">Historial EPP</div>
-  </div>
-
-  <button class="fab-refresh" id="btnRefresh" onclick="forzarRefresh()" title="Sincronizar cambios">⟳</button>
-
-  <div id="toast" class="toast-notif">✅ ¡Datos actualizados!</div>
-
-  <div class="app-container">
-    
-    <div id="vistaLista" class="view">
-      <div class="search-wrapper">
-        <input type="search" id="txtBuscar" placeholder="🔍 Buscar por DNI o Nombre..." oninput="filtrarOperarios()" disabled>
-      </div>
-      
-      <div class="status-bar">
-        <div id="status" class="status-badge">⏳ Conectando con Google Sheets...</div>
-        <div id="workerCounter" class="counter-badge" style="display: none;">0 Trabajadores</div>
-      </div>
-
-      <div id="listaOperarios" class="list-container"></div>
-    </div>
-
-    <div id="vistaDetalle" class="view hidden">
-      <div class="detail-header-card">
-        <div class="detail-worker-name" id="detNombre">-</div>
-        <div class="detail-worker-meta" id="detMeta">-</div>
-      </div>
-      <div class="section-title">Elementos Asignados</div>
-      <div id="listaEppDetalle
+    box-shadow:
