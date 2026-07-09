@@ -71,7 +71,7 @@
     font-weight: 500;
   }
 
-  /* NUEVO BOTÓN INTEGRADO AL LADO DEL TEXTO */
+  /* BOTÓN INTEGRADO AL LADO DEL TEXTO */
   .btn-inline-refresh {
     background-color: var(--primary-light);
     color: var(--primary);
@@ -245,7 +245,7 @@
   /* Tabla de Atributos Dinámicos */
   .dynamic-fields { display: flex; flex-direction: column; gap: 8px; }
   .field-row { display: flex; justify-content: space-between; align-items: flex-start; font-size: 13px; line-height: 1.4; }
-  .field-label { color: var(--text-muted); font-weight: 400; padding-right: 8px; }
+  .field-label { color: var(--text-muted); font-weight: 400; padding-right: 8px; text-transform: capitalize; }
   .field-value { color: var(--text-main); font-weight: 500; text-align: right; }
 </style>
 </head>
@@ -288,7 +288,7 @@
   </div>
 
 <script>
-  const urlPublicacionXlsx = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ4z6Z8K_NP4ggZB7lkmP8WdeMa0KLTReOx3hpP3Ps6oyX5qW6UGU92ZO8E7Ub09A/pub?output=xlsx";
+  const urlPublicacionXlsx = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ9_lp_D8GkLHJjPvlZt8vrOng2zPx7UrHYUCG2v8TaRQAz6MzTBLq6H71zPGwO2EZVNYnOdTrm5Bwq/pub?output=xlsx";
 
   let mapaTrabajadores = {}; 
   let columnasDisponibles = []; 
@@ -297,6 +297,22 @@
   let colIdxNombre = -1;
   let colIdxProducto = -1;
   let colIdxEntregado = -1;
+
+  // Función para convertir fechas de número interno de Excel a DD/MM/AAAA
+  function formatearFechaExcel(valor) {
+    if (!valor) return "";
+    const num = Number(valor);
+    if (isNaN(num) || num < 30000 || num > 60000) return String(valor).trim();
+    
+    // Convertir número de serie de Excel a objeto Fecha en JS
+    const fecha = new Date((num - 25569) * 86400 * 1000);
+    
+    const dia = String(fecha.getUTCDate()).padStart(2, '0');
+    const mes = String(fecha.getUTCMonth() + 1).padStart(2, '0');
+    const anio = fecha.getUTCFullYear();
+    
+    return dia + "/" + mes + "/" + anio;
+  }
 
   window.addEventListener('DOMContentLoaded', () => {
     cargarLibroDesdeGoogle(urlPublicacionXlsx, false);
@@ -383,8 +399,12 @@
 
         columnasDisponibles.forEach((nombreColumna, idxCol) => {
           if (idxCol !== colIdxDni && idxCol !== colIdxNombre && idxCol !== colIdxProducto) {
-            const valorCelda = limpiar(fila[idxCol]);
+            let valorCelda = limpiar(fila[idxCol]);
             if (valorCelda !== "") {
+              // Si la columna habla de fechas, la formateamos antes de guardarla
+              if (nombreColumna.toLowerCase().includes('fecha')) {
+                valorCelda = formatearFechaExcel(valorCelda);
+              }
               eppDinamico.camposExtra.push({ label: nombreColumna, value: valorCelda });
             }
           }
@@ -490,7 +510,7 @@
         it.camposExtra.forEach(campo => {
           filasAtributosHTML += '\
             <div class="field-row">\
-              <span class="field-label">' + campo.label + '</span>\
+              <span class="field-label">' + campo.label + ':</span>\
               <span class="field-value">' + campo.value + '</span>\
             </div>\
           ';
