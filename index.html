@@ -58,25 +58,30 @@
     gap: 4px;
   }
 
-  /* Botón de Refresh */
-  .btn-refresh {
-    position: absolute;
-    right: 16px;
-    background: none;
+  /* BOTÓN GRAN REFRESH FLOTANTE (ESTILO MÓVIL) */
+  .fab-refresh {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background-color: var(--primary);
+    color: white;
     border: none;
-    color: var(--primary);
-    font-size: 20px;
-    cursor: pointer;
+    font-size: 28px;
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    transition: background-color 0.2s;
+    box-shadow: 0 4px 16px rgba(0, 122, 255, 0.4);
+    cursor: pointer;
+    z-index: 999;
+    transition: transform 0.1s ease, background-color 0.2s;
+    -webkit-tap-highlight-color: transparent;
   }
-  .btn-refresh:active {
-    background-color: var(--bg);
+  .fab-refresh:active {
+    transform: scale(0.9);
+    background-color: #0056b3;
   }
 
   /* Animación de rotación para el refresh */
@@ -85,8 +90,33 @@
     100% { transform: rotate(360deg); }
   }
   .spinning {
-    animation: spin 0.8s linear infinite;
-    color: var(--text-muted);
+    animation: spin 1s linear infinite;
+    background-color: var(--text-muted) !important;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    pointer-events: none;
+  }
+
+  /* Cartel de aviso de éxito temporal */
+  .toast-notif {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(0, 0, 0, 0.85);
+    color: white;
+    padding: 12px 24px;
+    border-radius: 24px;
+    font-size: 14px;
+    font-weight: 600;
+    z-index: 1000;
+    display: none;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    animation: fadeIn 0.2s ease-out;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translate(-50%, -40%); }
+    to { opacity: 1; transform: translate(-50%, -50%); }
   }
 
   /* Contenedor principal móvil */
@@ -220,8 +250,11 @@
   <div class="navbar">
     <button class="btn-back" id="btnVolver" onclick="mostrarVistaLista()">← Volver</button>
     <div class="navbar-title" id="navTitle">Historial EPP</div>
-    <button class="btn-refresh" id="btnRefresh" onclick="forzarRefresh()" title="Sincronizar cambios">⟳</button>
   </div>
+
+  <button class="fab-refresh" id="btnRefresh" onclick="forzarRefresh()" title="Sincronizar cambios">⟳</button>
+
+  <div id="toast" class="toast-notif">✅ ¡Datos actualizados!</div>
 
   <div class="app-container">
     
@@ -244,258 +277,4 @@
         <div class="detail-worker-meta" id="detMeta">-</div>
       </div>
       <div class="section-title">Elementos Asignados</div>
-      <div id="listaEppDetalle"></div>
-    </div>
-
-  </div>
-
-<script>
-  // URL global de tu base de datos XLSX publicado en Google
-  const urlPublicacionXlsx = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ9_lp_D8GkLHJjPvlZt8vrOng2zPx7UrHYUCG2v8TaRQAz6MzTBLq6H71zPGwO2EZVNYnOdTrm5Bwq/pub?output=xlsx";
-
-  // Estructuras de memoria globales
-  let mapaTrabajadores = {}; 
-  let columnasDisponibles = []; 
-  
-  let colIdxDni = -1;
-  let colIdxNombre = -1;
-  let colIdxProducto = -1;
-  let colIdxEntregado = -1;
-
-  window.addEventListener('DOMContentLoaded', () => {
-    cargarLibroDesdeGoogle(urlPublicacionXlsx);
-  });
-
-  // Función para gatillar la actualización manual desde el botón
-  function forzarRefresh() {
-    const icon = document.getElementById('btnRefresh');
-    const inputBuscar = document.getElementById('txtBuscar');
-    
-    if (icon.classList.contains('spinning')) return; // Evita multi-clics continuos
-    
-    icon.classList.add('spinning');
-    inputBuscar.disabled = true;
-    
-    // Agregamos un timestamp aleatorio al final de la URL para saltarnos la caché del navegador del celu
-    const urlFiltroCache = `${urlPublicacionXlsx}&_cb=${new Date().getTime()}`;
-    cargarLibroDesdeGoogle(urlFiltroCache);
-  }
-
-  async function cargarLibroDesdeGoogle(urlExcel) {
-    const statusDiv = document.getElementById('status');
-    const inputBuscar = document.getElementById('txtBuscar');
-    const counterBadge = document.getElementById('workerCounter');
-    const iconRefresh = document.getElementById('btnRefresh');
-
-    try {
-      statusDiv.innerText = "⏳ Descargando cambios desde la nube...";
-      statusDiv.style.color = "var(--text-muted)";
-
-      const respuesta = await fetch(urlExcel);
-      if (!respuesta.ok) throw new Error();
-      
-      const dataBinaria = await respuesta.arrayBuffer();
-      const libro = XLSX.read(dataBinaria, { type: 'array' });
-      
-      const nombrePestana = "Planilla_EPP";
-      if (!libro.SheetNames.includes(nombrePestana)) {
-        throw new Error(`Falta pestaña '${nombrePestana}'`);
-      }
-      
-      const hojaPlanilla = libro.Sheets[nombrePestana];
-      const filas = XLSX.utils.sheet_to_json(hojaPlanilla, { header: 1 });
-
-      if (filas.length === 0) throw new Error("Planilla vacía");
-
-      // --- MAPEADO DINÁMICO DE COLUMNAS ---
-      const cabecera = filas[0];
-      columnasDisponibles = cabecera.map(c => String(c || '').trim());
-
-      columnasDisponibles.forEach((col, idx) => {
-        const colLower = col.toLowerCase();
-        if (colLower === 'dni') colIdxDni = idx;
-        else if (colLower.includes('trabajador') || colLower === 'nombre') colIdxNombre = idx;
-        else if (colLower.includes('producto') || colLower === 'epp' || colLower === 'elemento') colIdxProducto = idx;
-        else if (colLower.includes('entrega') && !colLower.includes('fecha')) colIdxEntregado = idx;
-      });
-
-      if (colIdxDni === -1) colIdxDni = 0;
-      if (colIdxNombre === -1) colIdxNombre = 1;
-      if (colIdxProducto === -1) colIdxProducto = 3;
-      if (colIdxEntregado === -1) colIdxEntregado = 10;
-
-      mapaTrabajadores = {};
-
-      for(let i = 1; i < filas.length; i++) {
-        const fila = filas[i];
-        if (!fila || fila.length < 2) continue;
-
-        const limpiar = (val) => val !== undefined && val !== null ? String(val).trim() : "";
-        const dni = limpiar(fila[colIdxDni]);
-        
-        if (!dni || dni.toLowerCase() === "dni") continue;
-
-        if (!mapaTrabajadores[dni]) {
-          mapaTrabajadores[dni] = {
-            dni: dni,
-            nombre: limpiar(fila[colIdxNombre]) || 'Sin Nombre',
-            legajo: limpiar(fila[2]), 
-            items: []
-          };
-        }
-
-        let eppDinamico = {
-          _producto: limpiar(fila[colIdxProducto]),
-          _esEntregado: limpiar(fila[colIdxEntregado]).toLowerCase() === 'sí' || limpiar(fila[colIdxEntregado]).toLowerCase() === 'si',
-          camposExtra: []
-        };
-
-        columnasDisponibles.forEach((nombreColumna, idxCol) => {
-          if (idxCol !== colIdxDni && idxCol !== colIdxNombre && idxCol !== colIdxProducto) {
-            const valorCelda = limpiar(fila[idxCol]);
-            if (valorCelda !== "") {
-              eppDinamico.camposExtra.push({
-                label: nombreColumna,
-                value: valorCelda
-              });
-            }
-          }
-        });
-
-        if (eppDinamico._producto) {
-          mapaTrabajadores[dni].items.push(eppDinamico);
-        }
-      }
-
-      // Actualizar visualizaciones e indicadores
-      const totalTrabajadores = Object.keys(mapaTrabajadores).length;
-      counterBadge.innerText = `${totalTrabajadores} Trabajador${totalTrabajadores !== 1 ? 'es' : ''}`;
-      counterBadge.style.display = "block";
-
-      statusDiv.innerText = `🟢 Sincronizado`;
-      statusDiv.style.color = "var(--success)";
-      inputBuscar.disabled = false;
-      
-      // Si el usuario estaba viendo el detalle de alguien, actualizamos su ficha de fondo por si cambiaron datos
-      if (!document.getElementById('vistaDetalle').classList.contains('hidden')) {
-        const activeDni = document.getElementById('detMeta').innerText.match(/DNI:\s*([^\s•|]+)/);
-        if (activeDni && activeDni[1]) mostrarVistaDetalle(activeDni[1]);
-      } else {
-        filtrarOperarios();
-      }
-
-    } catch (err) {
-      console.error(err);
-      statusDiv.innerText = "❌ Error al sincronizar";
-      statusDiv.style.color = "var(--danger)";
-    } finally {
-      // Detener animación del botón de refresco
-      iconRefresh.classList.remove('spinning');
-    }
-  }
-
-  function renderizarListaOperarios(lista) {
-    const contenedor = document.getElementById('listaOperarios');
-    contenedor.innerHTML = "";
-
-    lista.sort((a, b) => a.nombre.localeCompare(b.nombre));
-
-    if (lista.length === 0) {
-      contenedor.innerHTML = "<p style='color: var(--text-muted); text-align:center; padding: 20px;'>Sin coincidencias.</p>";
-      return;
-    }
-
-    lista.forEach(op => {
-      const fila = document.createElement('div');
-      fila.className = 'worker-row';
-      fila.onclick = () => mostrarVistaDetalle(op.dni);
-      
-      fila.innerHTML = `
-        <div class="worker-info">
-          <div class="worker-name">${op.nombre}</div>
-          <div class="worker-meta">DNI: ${op.dni} ${op.legajo ? `• Legajo: ${op.legajo}` : ''}</div>
-        </div>
-        <div class="chevron-icon">›</div>
-      `;
-      contenedor.appendChild(fila);
-    });
-  }
-
-  function filtrarOperarios() {
-    const busqueda = document.getElementById('txtBuscar').value.toLowerCase().trim();
-    const todos = Object.values(mapaTrabajadores);
-
-    if (!busqueda) {
-      renderizarListaOperarios(todos);
-      return;
-    }
-
-    const filtrados = todos.filter(op => 
-      op.dni.toLowerCase().includes(busqueda) || 
-      op.nombre.toLowerCase().includes(busqueda)
-    );
-
-    renderizarListaOperarios(filtrados);
-  }
-
-  function mostrarVistaDetalle(dni) {
-    const op = mapaTrabajadores[dni];
-    if (!op) return;
-
-    document.getElementById('navTitle').innerText = "Ficha Trabajador";
-    document.getElementById('btnVolver').style.display = "flex";
-    document.getElementById('btnRefresh').style.display = "none"; // Ocultar refresh en detalle
-    
-    document.getElementById('detNombre').innerText = op.nombre;
-    document.getElementById('detMeta').innerText = `DNI: ${op.dni} ${op.legajo ? `• Legajo: ${op.legajo}` : ''}`;
-
-    const contenedorEpp = document.getElementById('listaEppDetalle');
-    contenedorEpp.innerHTML = "";
-
-    if (op.items.length === 0) {
-      contenedorEpp.innerHTML = "<p style='color: var(--text-muted); font-style: italic; padding: 10px;'>Este trabajador no registra entregas de EPP.</p>";
-    } else {
-      op.items.forEach(it => {
-        let filasAtributosHTML = "";
-        it.camposExtra.forEach(campo => {
-          filasAtributosHTML += `
-            <div class="field-row">
-              <span class="field-label">${campo.label}</span>
-              <span class="field-value">${campo.value}</span>
-            </div>
-          `;
-        });
-
-        const tarjeta = `
-          <div class="epp-card ${it._esEntregado ? 'entregado' : 'pendiente'}">
-            <div class="epp-top">
-              <h4 class="epp-title">${it._producto}</h4>
-              <span class="badge ${it._esEntregado ? 'si' : 'no'}">${it._esEntregado ? 'Entregado' : 'Pendiente'}</span>
-            </div>
-            <div class="dynamic-fields">
-              ${filasAtributosHTML}
-            </div>
-          </div>
-        `;
-        contenedorEpp.innerHTML += tarjeta;
-      });
-    }
-
-    document.getElementById('vistaLista').classList.add('hidden');
-    document.getElementById('vistaDetalle').classList.remove('hidden');
-    window.scrollTo(0, 0);
-  }
-
-  function mostrarVistaLista() {
-    document.getElementById('navTitle').innerText = "Historial EPP";
-    document.getElementById('btnVolver').style.display = "none";
-    document.getElementById('btnRefresh').style.display = "flex"; // Volver a mostrar refresh
-    
-    document.getElementById('vistaDetalle').classList.add('hidden');
-    document.getElementById('vistaLista').classList.remove('hidden');
-    filtrarOperarios(); // Mantiene sincronizada la lista por si hubo cambios de datos
-  }
-</script>
-
-</body>
-</html>
+      <div id="listaEppDetalle
