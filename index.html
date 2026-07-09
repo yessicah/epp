@@ -2,228 +2,424 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>Buscador EPP - Nube Completa</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Control de EPP</title>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
-  body { 
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
-    padding: 15px; 
-    background: #f5f5f7; 
-    color: #333; 
-    margin: 0;
+  :root {
+    --primary: #007aff;
+    --primary-light: #e3f2fd;
+    --bg: #f2f2f7;
+    --card-bg: #ffffff;
+    --text-main: #1c1c1e;
+    --text-muted: #8e8e93;
+    --border: #e5e5ea;
+    --success: #34c759;
+    --success-bg: #e3fbe3;
+    --danger: #ff3b30;
+    --danger-bg: #ffebe9;
   }
-  h2 { text-align: center; color: #1d1d1f; margin-top: 10px; margin-bottom: 20px; }
-  
-  .search-container { margin-bottom: 20px; }
+
+  body { 
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
+    padding: 0; 
+    margin: 0;
+    background-color: var(--bg); 
+    color: var(--text-main);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Barra de Navegación superior */
+  .navbar {
+    background-color: var(--card-bg);
+    padding: 16px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+  }
+  .navbar-title { font-size: 18px; font-weight: 700; color: var(--text-main); text-align: center; }
+  .btn-back {
+    position: absolute;
+    left: 16px;
+    background: none;
+    border: none;
+    color: var(--primary);
+    font-size: 16px;
+    font-weight: 500;
+    cursor: pointer;
+    display: none;
+    align-items: center;
+    gap: 4px;
+  }
+
+  /* Contenedor principal móvil */
+  .app-container {
+    max-width: 600px;
+    margin: 0 auto;
+    padding: 16px;
+    box-sizing: border-box;
+  }
+
+  /* Buscador Estilizado */
+  .search-wrapper {
+    margin-bottom: 16px;
+    position: relative;
+  }
   input[type="search"] { 
     width: 100%; 
-    padding: 14px; 
-    border-radius: 8px; 
-    border: 1px solid #ccc; 
+    padding: 14px 16px; 
+    border-radius: 12px; 
+    border: 1px solid var(--border); 
     font-size: 16px; 
     box-sizing: border-box; 
-    box-shadow: inset 0 1px 2px rgba(0,0,0,0.05);
+    background-color: var(--card-bg);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+    transition: all 0.2s ease;
+  }
+  input[type="search"]:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.15);
   }
   
-  .status-msg { 
-    font-size: 14px; 
-    color: #007aff; 
+  .status-badge { 
+    font-size: 13px; 
+    color: var(--text-muted); 
     text-align: center; 
-    margin: 12px 0; 
+    margin-bottom: 16px;
     font-weight: 500;
   }
-  
-  .operario-card {
-    background: white;
+
+  /* Vistas (Pantallas virtuales) */
+  .view { display: block; }
+  .view.hidden { display: none; }
+
+  /* Lista Principal de Operarios */
+  .list-container { display: flex; flex-direction: column; gap: 10px; }
+  .worker-row {
+    background: var(--card-bg);
     border-radius: 12px;
     padding: 16px;
-    margin-bottom: 20px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    cursor: pointer;
+    transition: transform 0.15s ease, background-color 0.15s ease;
+    -webkit-tap-highlight-color: transparent;
   }
-  .operario-header {
-    border-bottom: 2px solid #007aff;
-    padding-bottom: 8px;
-    margin-bottom: 12px;
+  .worker-row:active {
+    transform: scale(0.98);
+    background-color: #f2f2f7;
   }
-  .operario-nombre { font-size: 18px; font-weight: bold; color: #1d1d1f; }
-  .operario-meta { font-size: 14px; color: #666; margin-top: 4px; }
-  
-  .epp-item { 
-    background: #f8f9fa; 
-    padding: 12px; 
-    border-radius: 8px; 
-    margin-bottom: 10px; 
-    border-left: 4px solid #ccc;
-  }
-  .epp-item.entregado { border-left-color: #1a7f37; }
-  .epp-item.pendiente { border-left-color: #cf222e; }
+  .worker-info { display: flex; flex-direction: column; gap: 4px; }
+  .worker-name { font-size: 16px; font-weight: 600; color: var(--text-main); }
+  .worker-meta { font-size: 13px; color: var(--text-muted); }
+  .chevron-icon { color: var(--text-muted); font-size: 18px; font-weight: bold; }
 
-  .top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
-  .producto-nombre { font-weight: 600; font-size: 15px; color: #1d1d1f; }
+  /* Vista de Detalle Exclusiva */
+  .detail-header-card {
+    background: var(--primary);
+    color: white;
+    padding: 20px;
+    border-radius: 16px;
+    margin-bottom: 20px;
+    box-shadow: 0 4px 12px rgba(0, 122, 255, 0.2);
+  }
+  .detail-worker-name { font-size: 22px; font-weight: 700; margin: 0; }
+  .detail-worker-meta { font-size: 14px; opacity: 0.85; margin-top: 6px; }
+
+  .section-title {
+    font-size: 15px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-muted);
+    margin: 0 0 10px 4px;
+    font-weight: 600;
+  }
+
+  /* Tarjetas Dinámicas de EPP */
+  .epp-card {
+    background: var(--card-bg);
+    border-radius: 14px;
+    padding: 16px;
+    margin-bottom: 12px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.03);
+    border-left: 5px solid var(--text-muted);
+  }
+  .epp-card.entregado { border-left-color: var(--success); }
+  .epp-card.pendiente { border-left-color: var(--danger); }
+
+  .epp-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; }
+  .epp-title { font-size: 16px; font-weight: 600; color: var(--text-main); margin: 0; }
   
   .badge { padding: 4px 8px; border-radius: 6px; font-size: 11px; font-weight: bold; text-transform: uppercase; }
-  .badge.si { background: #e2f6ea; color: #1a7f37; }
-  .badge.no { background: #ffebe9; color: #cf222e; }
+  .badge.si { background: var(--success-bg); color: var(--success); }
+  .badge.no { background: var(--danger-bg); color: var(--danger); }
   
-  .details { font-size: 13px; display: grid; grid-template-columns: 1fr; gap: 4px; color: #555; }
-  .detail-field { display: flex; justify-content: space-between; border-bottom: 1px dashed #e5e5e5; padding-bottom: 2px; }
-  .k { color: #86868b; }
-  .v { font-weight: 500; text-align: right; color: #1d1d1f; }
-  .nota { margin-top: 6px; font-size: 12px; color: #666; font-style: italic; background: #eee; padding: 4px 8px; border-radius: 4px; }
+  /* Tabla de Atributos Dinámicos */
+  .dynamic-fields { display: flex; flex-direction: column; gap: 8px; }
+  .field-row { display: flex; justify-content: space-between; align-items: flex-start; font-size: 13px; line-height: 1.4; }
+  .field-label { color: var(--text-muted); font-weight: 400; padding-right: 8px; }
+  .field-value { color: var(--text-main); font-weight: 500; text-align: right; }
 </style>
 </head>
 <body>
 
-  <h2>Buscador de Historial EPP</h2>
-
-  <div class="search-container">
-    <div id="status" class="status-msg">⏳ Descargando y procesando libro completo...</div>
-    <input type="search" id="txtBuscar" placeholder="Buscar por DNI o Apellido..." oninput="filtrarResultados()" disabled>
+  <div class="navbar">
+    <button class="btn-back" id="btnVolver" onclick="mostrarVistaLista()">← Volver</button>
+    <div class="navbar-title" id="navTitle">Historial EPP</div>
   </div>
 
-  <div id="resultados"></div>
+  <div class="app-container">
+    
+    <div id="vistaLista" class="view">
+      <div class="search-wrapper">
+        <input type="search" id="txtBuscar" placeholder="🔍 Buscar por DNI o Nombre..." oninput="filtrarOperarios()" disabled>
+      </div>
+      <div id="status" class="status-badge">⏳ Conectando con Google Sheets...</div>
+      <div id="listaOperarios" class="list-container"></div>
+    </div>
+
+    <div id="vistaDetalle" class="view hidden">
+      <div class="detail-header-card">
+        <div class="detail-worker-name" id="detNombre">-</div>
+        <div class="detail-worker-meta" id="detMeta">-</div>
+      </div>
+      <div class="section-title">Elementos Asignados</div>
+      <div id="listaEppDetalle"></div>
+    </div>
+
+  </div>
 
 <script>
-  let baseDatosEPP = [];
+  // Estructuras de memoria globales
+  let mapaTrabajadores = {}; 
+  let columnasDisponibles = []; 
+  
+  // Nombres normalizados de las columnas de control base
+  let colIdxDni = -1;
+  let colIdxNombre = -1;
+  let colIdxProducto = -1;
+  let colIdxEntregado = -1;
 
-  // Función para descargar el archivo .xlsx binario de fondo
+  // Carga e inicialización inmediata al abrir la página
+  window.addEventListener('DOMContentLoaded', () => {
+    const urlPublicacionXlsx = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ9_lp_D8GkLHJjPvlZt8vrOng2zPx7UrHYUCG2v8TaRQAz6MzTBLq6H71zPGwO2EZVNYnOdTrm5Bwq/pub?output=xlsx";
+    cargarLibroDesdeGoogle(urlPublicacionXlsx);
+  });
+
   async function cargarLibroDesdeGoogle(urlExcel) {
     const statusDiv = document.getElementById('status');
     const inputBuscar = document.getElementById('txtBuscar');
 
     try {
-      // Pedimos el archivo como un arrayBuffer (binario raw)
       const respuesta = await fetch(urlExcel);
-      if (!respuesta.ok) throw new Error("No se pudo obtener el archivo.");
+      if (!respuesta.ok) throw new Error();
       
       const dataBinaria = await respuesta.arrayBuffer();
-      
-      // SheetJS lee todo el libro con sus múltiples pestañas
       const libro = XLSX.read(dataBinaria, { type: 'array' });
       
-      // Buscamos específicamente la pestaña que necesitamos
       const nombrePestana = "Planilla_EPP";
       if (!libro.SheetNames.includes(nombrePestana)) {
-        throw new Error(`No se encontró la pestaña llamada '${nombrePestana}'`);
+        throw new Error(`Falta pestaña '${nombrePestana}'`);
       }
       
       const hojaPlanilla = libro.Sheets[nombrePestana];
-      // Convertimos la matriz a JSON estructurado por filas
       const filas = XLSX.utils.sheet_to_json(hojaPlanilla, { header: 1 });
 
-      baseDatosEPP = [];
+      if (filas.length === 0) throw new Error("Planilla vacía");
 
-      filas.forEach((fila, index) => {
-        if (index === 0 || !fila || fila.length < 2) return; // Saltamos cabecera o vacías
+      // --- MAPEADO DINÁMICO DE COLUMNAS ---
+      const cabecera = filas[0];
+      columnasDisponibles = cabecera.map(c => String(c || '').trim());
 
-        const limpiar = (val) => val !== undefined && val !== null ? String(val).trim() : "";
-
-        // Mapeo posicional exacto de tus columnas del CSV
-        const dni = limpiar(fila[0]);
-        if (!dni || dni.toLowerCase() === "dni") return;
-
-        baseDatosEPP.push({
-          dni: dni,
-          nombre: limpiar(fila[1]),
-          legajo: limpiar(fila[2]),
-          producto: limpiar(fila[3]),
-          tipo: limpiar(fila[4]),
-          marca: limpiar(fila[5]),
-          certificacion: limpiar(fila[6]),
-          cantidad: limpiar(fila[7]) || "1",
-          fecha: limpiar(fila[8]),
-          fechaReposicion: limpiar(fila[9]),
-          entregado: limpiar(fila[10]),
-          infoAdicional: limpiar(fila[11])
-        });
+      // Identificamos los índices de control buscando coincidencias semánticas elementales
+      columnasDisponibles.forEach((col, idx) => {
+        const colLower = col.toLowerCase();
+        if (colLower === 'dni') colIdxDni = idx;
+        else if (colLower.includes('trabajador') || colLower === 'nombre') colIdxNombre = idx;
+        else if (colLower.includes('producto') || colLower === 'epp' || colLower === 'elemento') colIdxProducto = idx;
+        else if (colLower.includes('entrega') && !colLower.includes('fecha')) colIdxEntregado = idx;
       });
 
-      statusDiv.innerText = `✅ ¡Libro completo sincronizado! (${baseDatosEPP.length} registros)`;
-      statusDiv.style.color = "#1a7f37";
+      // Si no encuentra columnas lógicas por texto, asigna por defecto posicional inteligente
+      if (colIdxDni === -1) colIdxDni = 0;
+      if (colIdxNombre === -1) colIdxNombre = 1;
+      if (colIdxProducto === -1) colIdxProducto = 3;
+      if (colIdxEntregado === -1) colIdxEntregado = 10;
+
+      mapaTrabajadores = {};
+
+      // Procesar filas de datos
+      for(let i = 1; i < filas.length; i++) {
+        const fila = filas[i];
+        if (!fila || fila.length < 2) continue;
+
+        const limpiar = (val) => val !== undefined && val !== null ? String(val).trim() : "";
+        const dni = limpiar(fila[colIdxDni]);
+        
+        if (!dni || dni.toLowerCase() === "dni") continue;
+
+        // Si el trabajador no existe en el mapa, lo creamos
+        if (!mapaTrabajadores[dni]) {
+          mapaTrabajadores[dni] = {
+            dni: dni,
+            nombre: limpiar(fila[colIdxNombre]) || 'Sin Nombre',
+            legajo: limpiar(fila[2]), // Guardado posicional preventivo para subtítulos
+            items: []
+          };
+        }
+
+        // Construcción dinámica de atributos del EPP recorriendo el 100% de celdas declaradas
+        let eppDinamico = {
+          _producto: limpiar(fila[colIdxProducto]),
+          _esEntregado: limpiar(fila[colIdxEntregado]).toLowerCase() === 'sí' || limpiar(fila[colIdxEntregado]).toLowerCase() === 'si',
+          camposExtra: []
+        };
+
+        columnasDisponibles.forEach((nombreColumna, idxCol) => {
+          // Guardamos en la tarjeta todos los datos que aporten valor y no sean las llaves primarias
+          if (idxCol !== colIdxDni && idxCol !== colIdxNombre && idxCol !== colIdxProducto) {
+            const valorCelda = limpiar(fila[idxCol]);
+            if (valorCelda !== "") {
+              eppDinamico.camposExtra.push({
+                label: nombreColumna,
+                value: valorCelda
+              });
+            }
+          }
+        });
+
+        if (eppDinamico._producto) {
+          mapaTrabajadores[dni].items.push(eppDinamico);
+        }
+      }
+
+      statusDiv.innerText = `🟢 Conectado con la nube`;
       inputBuscar.disabled = false;
+      
+      // Renderizado automático inicial de todo el universo cargado
+      renderizarListaOperarios(Object.values(mapaTrabajadores));
 
     } catch (err) {
       console.error(err);
-      statusDiv.innerText = "❌ Error al descargar el libro completo. Verificá que esté publicado como .xlsx";
-      statusDiv.style.color = "#cf222e";
+      statusDiv.innerText = "❌ Error crítico al sincronizar datos.";
+      statusDiv.style.color = "var(--danger)";
     }
   }
 
-  function filtrarResultados() {
-    const busqueda = document.getElementById('txtBuscar').value.toLowerCase().trim();
-    const contenedor = document.getElementById('resultados');
+  // Despliega el bloque de operarios en la pantalla principal
+  function renderizarListaOperarios(lista) {
+    const contenedor = document.getElementById('listaOperarios');
     contenedor.innerHTML = "";
 
-    if (!busqueda) {
-      contenedor.innerHTML = "<p style='color: #888; text-align:center;'>Ingresá un DNI o Apellido para comenzar.</p>";
+    // Ordenar alfabéticamente por nombre
+    lista.sort((a, b) => a.nombre.localeCompare(b.nombre));
+
+    if (lista.length === 0) {
+      contenedor.innerHTML = "<p style='color: var(--text-muted); text-align:center; padding: 20px;'>Sin coincidencias.</p>";
       return;
     }
 
-    const registrosFiltrados = baseDatosEPP.filter(item => 
-      item.dni.toLowerCase().includes(busqueda) || 
-      item.nombre.toLowerCase().includes(busqueda)
-    );
-
-    if (registrosFiltrados.length === 0) {
-      contenedor.innerHTML = "<p style='color: #cf222e; text-align:center;'>No se encontraron registros.</p>";
-      return;
-    }
-
-    const mapaTrabajadores = {};
-    registrosFiltrados.forEach(reg => {
-      if (!mapaTrabajadores[reg.dni]) {
-        mapaTrabajadores[reg.dni] = { nombre: reg.nombre, legajo: reg.legajo, dni: reg.dni, items: [] };
-      }
-      if (reg.producto) {
-        mapaTrabajadores[reg.dni].items.push(reg);
-      }
-    });
-
-    Object.values(mapaTrabajadores).forEach(trabajador => {
-      let itemsHTML = "";
-
-      trabajador.items.forEach(it => {
-        const esEntregado = it.entregado.toLowerCase() === 'sí' || it.entregado.toLowerCase() === 'si';
-        
-        itemsHTML += `
-          <div class="epp-item ${esEntregado ? 'entregado' : 'pendiente'}">
-            <div class="top">
-              <span class="producto-nombre">${it.producto}</span>
-              <span class="badge ${esEntregado ? 'si' : 'no'}">${esEntregado ? 'Entregado' : 'Pendiente'}</span>
-            </div>
-            <div class="details">
-              ${it.tipo ? `<div class="detail-field"><span class="k">Tipo / Modelo</span><span class="v">${it.tipo}</span></div>` : ''}
-              ${it.marca ? `<div class="detail-field"><span class="k">Marca</span><span class="v">${it.marca}</span></div>` : ''}
-              <div class="detail-field"><span class="k">Cantidad</span><span class="v">${it.cantidad}</span></div>
-              <div class="detail-field"><span class="k">Fecha de Entrega</span><span class="v">${it.fecha || '-'}</span></div>
-              ${it.fechaReposicion ? `<div class="detail-field"><span class="k">Fecha Reposición</span><span class="v">${it.fechaReposicion}</span></div>` : ''}
-              ${it.certificacion ? `<div class="detail-field"><span class="k">Certificación</span><span class="v">${it.certificacion}</span></div>` : ''}
-            </div>
-            ${it.infoAdicional ? `<div class="nota">Nota: ${it.infoAdicional}</div>` : ''}
-          </div>
-        `;
-      });
-
-      contenedor.innerHTML += `
-        <div class="operario-card">
-          <div class="operario-header">
-            <div class="operario-nombre">${trabajador.nombre}</div>
-            <div class="operario-meta">DNI: ${trabajador.dni} ${trabajador.legajo ? `| Legajo: ${trabajador.legajo}` : ''}</div>
-          </div>
-          ${itemsHTML}
+    lista.forEach(op => {
+      const fila = document.createElement('div');
+      fila.className = 'worker-row';
+      fila.onclick = () => mostrarVistaDetalle(op.dni);
+      
+      fila.innerHTML = `
+        <div class="worker-info">
+          <div class="worker-name">${op.nombre}</div>
+          <div class="worker-meta">DNI: ${op.dni} ${op.legajo ? `• Legajo: ${op.legajo}` : ''}</div>
         </div>
+        <div class="chevron-icon">›</div>
       `;
+      contenedor.appendChild(fila);
     });
   }
 
-  // PEGA ACÁ TU ENLACE LARGO DE GOOGLE SHEETS DE TIPO XLSX
-  const urlPublicacionXlsx = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ9_lp_D8GkLHJjPvlZt8vrOng2zPx7UrHYUCG2v8TaRQAz6MzTBLq6H71zPGwO2EZVNYnOdTrm5Bwq/pub?output=xlsx";
-  
-  // Iniciamos la descarga automática al abrir la web
-  window.addEventListener('DOMContentLoaded', () => {
-    cargarLibroDesdeGoogle(urlPublicacionXlsx);
-  });
+  // Filtro inteligente en tiempo real según input
+  function filtrarOperarios() {
+    const busqueda = document.getElementById('txtBuscar').value.toLowerCase().trim();
+    const todos = Object.values(mapaTrabajadores);
+
+    if (!busqueda) {
+      renderizarListaOperarios(todos);
+      return;
+    }
+
+    const filtrados = todos.filter(op => 
+      op.dni.toLowerCase().includes(busqueda) || 
+      op.nombre.toLowerCase().includes(busqueda)
+    );
+
+    renderizarListaOperarios(filtrados);
+  }
+
+  // Cambio de pantalla: Ir al Detalle del Trabajador seleccionado
+  function mostrarVistaDetalle(dni) {
+    const op = mapaTrabajadores[dni];
+    if (!op) return;
+
+    // Configurar cabeceras
+    document.getElementById('navTitle').innerText = "Ficha Trabajador";
+    document.getElementById('btnVolver').style.display = "flex";
+    
+    document.getElementById('detNombre').innerText = op.nombre;
+    document.getElementById('detMeta').innerText = `DNI: ${op.dni} ${op.legajo ? `| Legajo: ${op.legajo}` : ''}`;
+
+    const contenedorEpp = document.getElementById('listaEppDetalle');
+    contenedorEpp.innerHTML = "";
+
+    if (op.items.length === 0) {
+      contenedorEpp.innerHTML = "<p style='color: var(--text-muted); font-style: italic; padding: 10px;'>Este trabajador no registra entregas de EPP.</p>";
+    } else {
+      op.items.forEach(it => {
+        // Renderizado 100% dinámico de campos adicionales leídos desde el Excel
+        let filasAtributosHTML = "";
+        it.camposExtra.forEach(campo => {
+          filasAtributosHTML += `
+            <div class="field-row">
+              <span class="field-label">${campo.label}</span>
+              <span class="field-value">${campo.value}</span>
+            </div>
+          `;
+        });
+
+        const tarjeta = `
+          <div class="epp-card ${it._esEntregado ? 'entregado' : 'pendiente'}">
+            <div class="epp-top">
+              <h4 class="epp-title">${it._producto}</h4>
+              <span class="badge ${it._esEntregado ? 'si' : 'no'}">${it._esEntregado ? 'Entregado' : 'Pendiente'}</span>
+            </div>
+            <div class="dynamic-fields">
+              ${filasAtributosHTML}
+            </div>
+          </div>
+        `;
+        contenedorEpp.innerHTML += tarjeta;
+      });
+    }
+
+    // Ocultar pantalla de lista y mostrar la de detalle
+    document.getElementById('vistaLista').classList.add('hidden');
+    document.getElementById('vistaDetalle').classList.remove('hidden');
+    window.scrollTo(0, 0);
+  }
+
+  // Cambio de pantalla: Volver al Listado Principal
+  function mostrarVistaLista() {
+    document.getElementById('navTitle').innerText = "Historial EPP";
+    document.getElementById('btnVolver').style.display = "none";
+    
+    document.getElementById('vistaDetalle').classList.add('hidden');
+    document.getElementById('vistaLista').classList.remove('hidden');
+  }
 </script>
 
 </body>
