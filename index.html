@@ -303,7 +303,7 @@
     button.classList.add('spinning');
     document.getElementById('txtBuscar').disabled = true;
     
-    const urlFiltroCache = `${urlPublicacionXlsx}&_cb=${new Date().getTime()}`;
+    const urlFiltroCache = urlPublicacionXlsx + "&_cb=" + new Date().getTime();
     cargarLibroDesdeGoogle(urlFiltroCache, true);
   }
 
@@ -317,7 +317,7 @@
       statusDiv.innerText = "⏳ Descargando cambios...";
       statusDiv.style.color = "var(--text-muted)";
 
-      const respuesta = await fetch(urlExcel, { mode: 'cors' });
+      const respuesta = await fetch(urlExcel);
       if (!respuesta.ok) throw new Error("Error en respuesta de red");
       
       const dataBinaria = await respuesta.arrayBuffer();
@@ -325,7 +325,7 @@
       
       const nombrePestana = "Planilla_EPP";
       if (!libro.SheetNames.includes(nombrePestana)) {
-        throw new Error(`Falta pestaña '${nombrePestana}'`);
+        throw new Error("Falta pestaña Planilla_EPP");
       }
       
       const hojaPlanilla = libro.Sheets[nombrePestana];
@@ -390,10 +390,10 @@
       }
 
       const totalTrabajadores = Object.keys(mapaTrabajadores).length;
-      counterBadge.innerText = `${totalTrabajadores} Trabajador${totalTrabajadores !== 1 ? 'es' : ''}`;
+      counterBadge.innerText = totalTrabajadores + " Trabajador" + (totalTrabajadores !== 1 ? 'es' : '');
       counterBadge.style.display = "block";
 
-      statusDiv.innerText = `🟢 Sincronizado`;
+      statusDiv.innerText = "🟢 Sincronizado";
       statusDiv.style.color = "var(--success)";
       inputBuscar.disabled = false;
       
@@ -412,7 +412,7 @@
 
     } catch (err) {
       console.error(err);
-      statusDiv.innerText = "❌ Error de conexión con Google";
+      statusDiv.innerText = "❌ Error al sincronizar";
       statusDiv.style.color = "var(--danger)";
     } finally {
       buttonRefresh.classList.remove('spinning');
@@ -433,15 +433,15 @@
     lista.forEach(op => {
       const fila = document.createElement('div');
       fila.className = 'worker-row';
-      fila.onclick = () => mostrarVistaDetalle(op.dni);
+      fila.onclick = function() { mostrarVistaDetalle(op.dni); };
       
-      fila.innerHTML = `
-        <div class="worker-info">
-          <div class="worker-name">${op.nombre}</div>
-          <div class="worker-meta">DNI: ${op.dni} ${op.legajo ? `• Legajo: ${op.legajo}` : ''}</div>
-        </div>
-        <div class="chevron-icon">›</div>
-      `;
+      fila.innerHTML = '\
+        <div class="worker-info">\
+          <div class="worker-name">' + op.nombre + '</div>\
+          <div class="worker-meta">DNI: ' + op.dni + (op.legajo ? ' • Legajo: ' + op.legajo : '') + '</div>\
+        </div>\
+        <div class="chevron-icon">›</div>\
+      ';
       contenedor.appendChild(fila);
     });
   }
@@ -464,4 +464,63 @@
   }
 
   function mostrarVistaDetalle(dni) {
-    const op = mapaTrabajadores
+    const op = mapaTrabajadores[dni];
+    if (!op) return;
+
+    document.getElementById('navTitle').innerText = "Ficha Trabajador";
+    document.getElementById('btnVolver').style.display = "flex";
+    document.getElementById('btnRefresh').style.display = "none"; 
+    
+    document.getElementById('detNombre').innerText = op.nombre;
+    document.getElementById('detMeta').innerText = "DNI: " + op.dni + (op.legajo ? " • Legajo: " + op.legajo : "");
+
+    const contenedorEpp = document.getElementById('listaEppDetalle');
+    contenedorEpp.innerHTML = "";
+
+    if (op.items.length === 0) {
+      contenedorEpp.innerHTML = "<p style='color: var(--text-muted); font-style: italic; padding: 10px;'>Este trabajador no registra entregas de EPP.</p>";
+    } else {
+      op.items.forEach(it => {
+        let filasAtributosHTML = "";
+        it.camposExtra.forEach(campo => {
+          filasAtributosHTML += '\
+            <div class="field-row">\
+              <span class="field-label">' + campo.label + '</span>\
+              <span class="field-value">' + campo.value + '</span>\
+            </div>\
+          ';
+        });
+
+        const tarjeta = '\
+          <div class="epp-card ' + (it._esEntregado ? 'entregado' : 'pendiente') + '">\
+            <div class="epp-top">\
+              <h4 class="epp-title">' + it._producto + '</h4>\
+              <span class="badge ' + (it._esEntregado ? 'si' : 'no') + '">' + (it._esEntregado ? 'Entregado' : 'Pendiente') + '</span>\
+            </div>\
+            <div class="dynamic-fields">\
+              ' + filasAtributosHTML + '\
+            </div>\
+          </div>\
+        ';
+        contenedorEpp.innerHTML += tarjeta;
+      });
+    }
+
+    document.getElementById('vistaLista').classList.add('hidden');
+    document.getElementById('vistaDetalle').classList.remove('hidden');
+    window.scrollTo(0, 0);
+  }
+
+  function mostrarVistaLista() {
+    document.getElementById('navTitle').innerText = "Historial EPP";
+    document.getElementById('btnVolver').style.display = "none";
+    document.getElementById('btnRefresh').style.display = "flex"; 
+    
+    document.getElementById('vistaDetalle').classList.add('hidden');
+    document.getElementById('vistaLista').classList.remove('hidden');
+    filtrarOperarios();
+  }
+</script>
+
+</body>
+</html>
